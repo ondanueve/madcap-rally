@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Madcap Rally - Diversión Familiar</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&family=Fredoka+One&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Nunito', sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+  color: #333;
+  overflow-x: hidden;
+}
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+header {
+  text-align: center;
+  padding: 20px;
+  background: rgba(255,255,255,0.95);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  margin-bottom: 20px;
+}
+h1 {
+  font-family: 'Fredoka One', cursive;
+  font-size: 3em;
+  background: linear-gradient(45deg, #ff6b6b, #feca57, #48dbfb, #ff9ff3);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.subtitle { color: #666; font-size: 1.2em; margin-top: 5px; }
+#game-area {
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.25);
+  padding: 20px;
+  min-height: 600px;
+  position: relative;
+}
+canvas {
+  border-radius: 15px;
+  display: block;
+  margin: 0 auto;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.1);
+  background: #e8f4f8;
+}
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center;
+  margin-top: 15px;
+}
+button {
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+  padding: 12px 25px;
+  border: none;
+  border-radius: 50px;
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.3); }
+.btn-primary { background: linear-gradient(45deg, #ff6b6b, #ee5a24); color: white; }
+.btn-secondary { background: linear-gradient(45deg, #48dbfb, #0abde3); color: white; }
+.btn-success { background: linear-gradient(45deg, #1dd1a1, #10ac84); color: white; }
+#status {
+  text-align: center;
+  font-size: 1.3em;
+  font-weight: 700;
+  margin: 10px 0;
+  padding: 15px;
+  background: #fff3cd;
+  border-radius: 15px;
+  border-left: 5px solid #ffc107;
+}
+.player-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 10px;
+}
+.player-card {
+  background: white;
+  padding: 10px 15px;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+  min-width: 150px;
+  text-align: center;
+  border: 3px solid #ddd;
+}
+.player-card.active { border-color: #ff6b6b; transform: scale(1.05); }
+.money { color: #10ac84; font-weight: 900; font-size: 1.2em; }
+footer {
+  text-align: center;
+  margin-top: 20px;
+  color: white;
+  font-size: 0.9em;
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Madcap Rally</h1>
+    <p class="subtitle">¡La carrera más loca y familiar por las capitales de Europa!</p>
+  </header>
+  
+  <div id="game-area">
+    <div id="status">¡Bienvenido a Madcap Rally! Configura los jugadores y comienza la diversión.</div>
+    <canvas id="board" width="900" height="500"></canvas>
+    <div class="controls">
+      <button id="btnSetup" class="btn-primary">Configurar Jugadores</button>
+      <button id="btnRoll" class="btn-success" disabled>Tirar Dados</button>
+      <button id="btnNext" class="btn-secondary" disabled>Siguiente Turno</button>
+    </div>
+    <div id="players" class="player-info"></div>
+  </div>
+  
+  <footer>
+    Juego original inspirado en clásicos de mesa. Gráficos modernos y divertidos. Hecho con ❤️ para familias.
+  </footer>
+</div>
+
+<script>
+const canvas = document.getElementById('board');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const playersEl = document.getElementById('players');
+
+let players = [];
+let currentPlayer = 0;
+let diceValue = 0;
+let gameStarted = false;
+let stage = 1;
+let targetCapital = null;
+const capitals = ['París', 'Berlín', 'Roma', 'Madrid', 'Londres', 'Viena', 'Ámsterdam'];
+const colors = ['#ff6b6b', '#48dbfb', '#1dd1a1', '#feca57', '#ff9ff3', '#5f27cd'];
+
+// Simplified board: nodes representing cities and paths
+const nodes = [
+  {id:0, x:100, y:250, name:'Inicio', color:'#ddd'},
+  {id:1, x:200, y:150, name:'', color:'#74b9ff'},
+  {id:2, x:300, y:100, name:'', color:'#ffeaa7'},
+  {id:3, x:400, y:180, name:'París', color:'#fff'},
+  {id:4, x:500, y:120, name:'', color:'#ff7675'},
+  {id:5, x:600, y:200, name:'Berlín', color:'#fff'},
+  {id:6, x:700, y:150, name:'', color:'#55efc4'},
+  {id:7, x:800, y:250, name:'Meta', color:'#fdcb6e'}
+];
+
+function drawBoard() {
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  // Background gradient
+  const grad = ctx.createLinearGradient(0,0,canvas.width,canvas.height);
+  grad.addColorStop(0, '#dfe6e9');
+  grad.addColorStop(1, '#b2bec3');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  
+  // Draw paths
+  ctx.strokeStyle = '#636e72';
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  for(let i=0; i<nodes.length-1; i++) {
+    ctx.moveTo(nodes[i].x, nodes[i].y);
+    ctx.lineTo(nodes[i+1].x, nodes[i+1].y);
+  }
+  ctx.stroke();
+  
+  // Draw nodes
+  nodes.forEach(n => {
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 25, 0, Math.PI*2);
+    ctx.fillStyle = n.color;
+    ctx.fill();
+    ctx.strokeStyle = '#2d3436';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    if(n.name) {
+      ctx.fillStyle = '#2d3436';
+      ctx.font = 'bold 12px Nunito';
+      ctx.textAlign = 'center';
+      ctx.fillText(n.name, n.x, n.y + 40);
+    }
+  });
+  
+  // Draw players
+  players.forEach((p, i) => {
+    const node = nodes[Math.min(p.position, nodes.length-1)];
+    const offset = (i - players.length/2) * 15;
+    ctx.beginPath();
+    ctx.arc(node.x + offset, node.y - 30, 12, 0, Math.PI*2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.strokeStyle = 'white';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 10px Nunito';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.name[0], node.x + offset, node.y - 26);
+  });
+}
+
+function updatePlayersUI() {
+  playersEl.innerHTML = '';
+  players.forEach((p, i) => {
+    const card = document.createElement('div');
+    card.className = 'player-card' + (i === currentPlayer ? ' active' : '');
+    card.style.borderColor = p.color;
+    card.innerHTML = `<strong>${p.name}</strong><br><span class="money">$${p.money}</span><br>Pos: ${p.position}`;
+    playersEl.appendChild(card);
+  });
+}
+
+function setupPlayers() {
+  const num = parseInt(prompt('¿Cuántos jugadores? (2-6)', '4')) || 4;
+  players = [];
+  for(let i=0; i<Math.min(Math.max(num,2),6); i++) {
+    const name = prompt(`Nombre del jugador ${i+1}`, `Jugador ${i+1}`) || `Jugador ${i+1}`;
+    players.push({
+      name,
+      money: 500,
+      position: 0,
+      color: colors[i % colors.length]
+    });
+  }
+  gameStarted = true;
+  currentPlayer = 0;
+  targetCapital = capitals[Math.floor(Math.random()*capitals.length)];
+  statusEl.textContent = `¡Etapa ${stage}! Objetivo: llegar a ${targetCapital}. Turno de ${players[0].name}`;
+  document.getElementById('btnRoll').disabled = false;
+  document.getElementById('btnSetup').disabled = true;
+  drawBoard();
+  updatePlayersUI();
+}
+
+function rollDice() {
+  if(!gameStarted) return;
+  diceValue = Math.floor(Math.random()*6) + 1;
+  statusEl.textContent = `${players[currentPlayer].name} sacó un ${diceValue}!`;
+  document.getElementById('btnRoll').disabled = true;
+  document.getElementById('btnNext').disabled = false;
+  setTimeout(() => movePlayer(diceValue), 500);
+}
+
+function movePlayer(steps) {
+  const p = players[currentPlayer];
+  p.position = Math.min(p.position + steps, nodes.length - 1);
+  if(nodes[p.position].color === '#74b9ff') p.money += 50;
+  else if(nodes[p.position].color === '#ff7675') p.money -= 30;
+  else if(nodes[p.position].color === '#ffeaa7') p.money += 20;
+  drawBoard();
+  updatePlayersUI();
+  statusEl.textContent = `${p.name} se movió ${steps} casillas. Dinero: $${p.money}`;
+}
+
+function nextTurn() {
+  currentPlayer = (currentPlayer + 1) % players.length;
+  document.getElementById('btnRoll').disabled = false;
+  document.getElementById('btnNext').disabled = true;
+  statusEl.textContent = `Turno de ${players[currentPlayer].name}. ¡Tira los dados!`;
+  if(players.some(p => p.position >= nodes.length-1)) {
+    const winner = players.reduce((a,b) => a.money > b.money ? a : b);
+    statusEl.textContent = `¡${winner.name} gana la etapa con $${winner.money}!`;
+    stage++;
+    players.forEach(p => p.position = 0);
+    targetCapital = capitals[Math.floor(Math.random()*capitals.length)];
+  }
+  drawBoard();
+  updatePlayersUI();
+}
+
+document.getElementById('btnSetup').onclick = setupPlayers;
+document.getElementById('btnRoll').onclick = rollDice;
+document.getElementById('btnNext').onclick = nextTurn;
+
+drawBoard();
+</script>
+</body>
+</html>
